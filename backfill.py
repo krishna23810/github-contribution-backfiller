@@ -38,9 +38,18 @@ def generate_commits(
     total_days = (end_date - start_date).days + 1
     active_days = 0
 
+    low = min(min_commits, max_commits)
+    high = max(min_commits, max_commits)
+    if low < 1:
+        low = 1
+    if high < low:
+        high = low
+
+    frequency = max(0.0, min(1.0, frequency))
+
     print(f"\n--- Backfill Configuration ---")
     print(f"Date Range    : {start_date} to {end_date} ({total_days} days)")
-    print(f"Commits/Day   : {min_commits} - {max_commits}")
+    print(f"Commits/Day   : {low} - {high}")
     print(f"Day Frequency : {int(frequency * 100)}%")
     print(f"Skip Weekends : {skip_weekends}")
     print(f"Dry Run       : {dry_run}")
@@ -58,7 +67,7 @@ def generate_commits(
         # Check random frequency
         if random.random() <= frequency:
             active_days += 1
-            commits_count = random.randint(min_commits, max_commits)
+            commits_count = random.randint(low, high)
             for i in range(commits_count):
                 total_commits += 1
                 # Random time between 09:00 and 21:00

@@ -34,7 +34,13 @@ def get_git_info():
     user_name = run_cmd(["git", "config", "user.name"]) or "User"
     user_email = run_cmd(["git", "config", "user.email"]) or "user@example.com"
     remote_url = run_cmd(["git", "remote", "get-url", "origin"]) or "No remote"
-    branch = run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"]) or "main"
+    branch = (
+        run_cmd(["git", "branch", "--show-current"])
+        or run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+        or "main"
+    )
+    if branch == "HEAD":
+        branch = "main"
     commit_count = run_cmd(["git", "rev-list", "--count", "HEAD"]) or "0"
 
     return {
@@ -263,16 +269,38 @@ def execute_backfill(start_date_str, end_date_str, min_c, max_c, freq, skip_wk, 
 
 def execute_push():
     try:
+        remote_check = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=REPO_DIR,
+            capture_output=True,
+            text=True,
+        )
+        if remote_check.returncode != 0 or not remote_check.stdout.strip():
+            return {
+                "success": False,
+                "error": "No remote 'origin' configured. Set one with:\n  git remote add origin https://github.com/<username>/<repo>.git",
+            }
+
+        branch_res = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=REPO_DIR,
+            capture_output=True,
+            text=True,
+        )
+        branch = branch_res.stdout.strip()
+        if not branch or branch == "HEAD":
+            branch = "main"
+
         res = subprocess.run(
-            ["git", "push", "origin", "main"],
+            ["git", "push", "-u", "origin", branch],
             cwd=REPO_DIR,
             capture_output=True,
             text=True,
             check=True,
         )
-        return {"success": True, "output": res.stdout + res.stderr}
+        return {"success": True, "output": (res.stdout + res.stderr).strip() or f"Pushed successfully to {branch}."}
     except subprocess.CalledProcessError as e:
-        return {"success": False, "error": e.stderr or e.stdout or str(e)}
+        return {"success": False, "error": (e.stderr or e.stdout or str(e)).strip()}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -501,27 +529,30 @@ HTML_PAGE = """<!DOCTYPE html>
             <span>📅 1. Select Date Range</span>
           </div>
           <div class="presets">
-            <button class="btn-preset highlight" onclick="setPreset('gap-may-jul-2026')">
-              🎯 Fill May - Jul 2026 Gap
+            <button class="btn-preset highlight" data-preset="past-year" onclick="setPreset('past-year', this)">
+              Past 1 Year (52 Wks)
             </button>
-            <button class="btn-preset" onclick="setPreset('gap-late-2025')">
-              Fill Nov - Dec 2025
+            <button class="btn-preset" data-preset="past-6-months" onclick="setPreset('past-6-months', this)">
+              Past 6 Months
             </button>
-            <button class="btn-preset" onclick="setPreset('full-past-year')">
-              Full Past 1 Year
+            <button class="btn-preset" data-preset="past-3-months" onclick="setPreset('past-3-months', this)">
+              Past 3 Months
             </button>
-            <button class="btn-preset" onclick="setPreset('full-2026')">
-              Full 2026
+            <button class="btn-preset" data-preset="current-month" onclick="setPreset('current-month', this)">
+              Current Month
+            </button>
+            <button class="btn-preset" data-preset="current-year" onclick="setPreset('current-year', this)">
+              Current Year (YTD)
             </button>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px;">
             <div class="form-group" style="margin-bottom:0;">
               <label>Start Date</label>
-              <input type="date" id="startDate" value="2026-05-01" onchange="runPreview()" />
+              <input type="date" id="startDate" oninput="onDateInputChanged()" onchange="onDateInputChanged()" />
             </div>
             <div class="form-group" style="margin-bottom:0;">
               <label>End Date</label>
-              <input type="date" id="endDate" value="2026-07-31" onchange="runPreview()" />
+              <input type="date" id="endDate" oninput="onDateInputChanged()" onchange="onDateInputChanged()" />
             </div>
           </div>
           <div>
@@ -698,8 +729,9 @@ HTML_PAGE = """<!DOCTYPE html>
                 existingCommitsMap[item.date] = Math.max(existingCommitsMap[item.date] || 0, item.count);
               }
             });
-            const total2026 = (ghData.total && ghData.total[2026]) ? `${ghData.total[2026]}+` : "0";
-            document.getElementById("profileTotal").textContent = total2026;
+            const currentYear = new Date().getFullYear();
+            const totalCount = (ghData.total && (ghData.total[currentYear] || Object.values(ghData.total).pop())) || "0";
+            document.getElementById("profileTotal").textContent = `${totalCount}+`;
           }
         }
       } catch (err) {}
@@ -709,8 +741,15 @@ HTML_PAGE = """<!DOCTYPE html>
       runPreview();
     }
 
+    function toISODate(d) {
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const day = String(d.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
     function build52WeekCalendar() {
-      const today = new Date("2026-11-26");
+      const today = new Date();
       const dayOfWeek = today.getDay();
       
       const endSaturday = new Date(today);
@@ -760,9 +799,34 @@ HTML_PAGE = """<!DOCTYPE html>
       }
     }
 
+    let clickSelectionPhase = 0;
+    function handleCellClick(dStr) {
+      const startEl = document.getElementById("startDate");
+      const endEl = document.getElementById("endDate");
+
+      if (clickSelectionPhase === 0) {
+        startEl.value = dStr;
+        endEl.value = dStr;
+        clickSelectionPhase = 1;
+        log(`Selected start: ${dStr}. Click another day to set end date.`, "info");
+      } else {
+        if (dStr < startEl.value) {
+          endEl.value = startEl.value;
+          startEl.value = dStr;
+        } else {
+          endEl.value = dStr;
+        }
+        clickSelectionPhase = 0;
+        log(`Date range updated: ${startEl.value} to ${endEl.value}`, "info");
+      }
+      onDateInputChanged();
+    }
+
     function renderCalendar() {
       const grid = document.getElementById("calendarGrid");
       grid.innerHTML = "";
+      const startVal = document.getElementById("startDate").value;
+      const endVal = document.getElementById("endDate").value;
 
       calendarDays.forEach(day => {
         const dStr = day.date;
@@ -779,11 +843,17 @@ HTML_PAGE = """<!DOCTYPE html>
         const cell = document.createElement("div");
         cell.className = `day-cell ${lvl}`;
 
+        if (startVal && endVal && dStr >= startVal && dStr <= endVal) {
+          cell.style.outline = "1.5px solid rgba(88, 166, 255, 0.5)";
+        }
+
+        cell.onclick = () => handleCellClick(dStr);
+
         if (newlyAdded > 0) {
           cell.classList.add("is-new");
-          cell.title = `${dStr}: ${exist} existing + ${newlyAdded} NEW commits`;
+          cell.title = `${dStr}: ${exist} existing + ${newlyAdded} NEW commits (Click to select)`;
         } else {
-          cell.title = `${dStr}: ${exist} contributions`;
+          cell.title = `${dStr}: ${exist} contributions (Click to select)`;
         }
 
         grid.appendChild(cell);
@@ -804,24 +874,49 @@ HTML_PAGE = """<!DOCTYPE html>
       document.getElementById("lblFreq").textContent = `${freq}%`;
     }
 
-    function setPreset(preset) {
-      if (preset === "gap-may-jul-2026") {
-        document.getElementById("startDate").value = "2026-05-01";
-        document.getElementById("endDate").value = "2026-07-31";
-        document.getElementById("onlyEmptyDays").checked = true;
-      } else if (preset === "gap-late-2025") {
-        document.getElementById("startDate").value = "2025-11-26";
-        document.getElementById("endDate").value = "2025-12-31";
-        document.getElementById("onlyEmptyDays").checked = true;
-      } else if (preset === "full-past-year") {
-        document.getElementById("startDate").value = "2025-11-26";
-        document.getElementById("endDate").value = "2026-11-26";
-        document.getElementById("onlyEmptyDays").checked = true;
-      } else if (preset === "full-2026") {
-        document.getElementById("startDate").value = "2026-01-01";
-        document.getElementById("endDate").value = "2026-12-31";
-        document.getElementById("onlyEmptyDays").checked = true;
+    function setPreset(preset, btnElement) {
+      const today = new Date();
+      if (preset === "past-year") {
+        const past = new Date(today);
+        past.setDate(today.getDate() - 364);
+        document.getElementById("startDate").value = toISODate(past);
+        document.getElementById("endDate").value = toISODate(today);
+      } else if (preset === "past-6-months") {
+        const past = new Date(today);
+        past.setDate(today.getDate() - 180);
+        document.getElementById("startDate").value = toISODate(past);
+        document.getElementById("endDate").value = toISODate(today);
+      } else if (preset === "past-3-months") {
+        const past = new Date(today);
+        past.setDate(today.getDate() - 90);
+        document.getElementById("startDate").value = toISODate(past);
+        document.getElementById("endDate").value = toISODate(today);
+      } else if (preset === "current-month") {
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        document.getElementById("startDate").value = toISODate(startOfMonth);
+        document.getElementById("endDate").value = toISODate(today);
+      } else if (preset === "current-year") {
+        const startOfYear = new Date(today.getFullYear(), 0, 1);
+        document.getElementById("startDate").value = toISODate(startOfYear);
+        document.getElementById("endDate").value = toISODate(today);
       }
+
+      // Update button highlights
+      document.querySelectorAll(".btn-preset").forEach(b => b.classList.remove("highlight"));
+      if (btnElement) {
+        btnElement.classList.add("highlight");
+      } else {
+        const targetBtn = document.querySelector(`.btn-preset[data-preset="${preset}"]`);
+        if (targetBtn) targetBtn.classList.add("highlight");
+      }
+
+      document.getElementById("onlyEmptyDays").checked = true;
+      runPreview();
+    }
+
+    function onDateInputChanged() {
+      // Clear preset button highlight when custom dates are chosen
+      document.querySelectorAll(".btn-preset").forEach(b => b.classList.remove("highlight"));
       runPreview();
     }
 
@@ -944,7 +1039,7 @@ HTML_PAGE = """<!DOCTYPE html>
       const btn = document.getElementById("btnPush");
       btn.disabled = true;
       btn.textContent = "⏳ Pushing...";
-      log("Executing 'git push origin main'...", "info");
+      log("Pushing to remote repository...", "info");
 
       try {
         const res = await fetch("/api/push", { method: "POST" });
@@ -952,7 +1047,7 @@ HTML_PAGE = """<!DOCTYPE html>
         if (!data.success) {
           log("Push error: " + (data.error || "Unknown error"), "err");
         } else {
-          log("Pushed successfully to GitHub!\\n" + (data.output || "Done."), "info");
+          log("Pushed successfully!\\n" + (data.output || "Done."), "info");
         }
         await loadGitInfo();
       } catch (err) {
@@ -965,6 +1060,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
     window.onload = async () => {
       build52WeekCalendar();
+      setPreset('past-year');
       updateLabels();
       await loadGitInfo();
       await loadExistingCommits();

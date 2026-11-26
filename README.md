@@ -87,7 +87,7 @@ http://localhost:8765
 1. **Verify Your User**:
    Look at the header. If your GitHub handle is different from your local Git name, click **`[edit]`** next to your username to load your profile graph.
 2. **Choose a Date Range**:
-   - Use quick presets like **🎯 Fill May – Jul Gap**, **Past 1 Year**, or select custom **Start Date** and **End Date**.
+   - Use quick presets like **Current Month**, **Past 3 Months**, **Past 6 Months**, **Past 1 Year**, **Current Year (YTD)**, or select custom **Start Date** and **End Date**.
    - Keep **Smart Gap Fill** checked so it only commits to empty days without overwriting days you already worked on.
 3. **Adjust Intensity**:
    - **Min / Max Commits**: Sets the range of commits per active day (higher commits create darker green squares).
@@ -103,7 +103,7 @@ http://localhost:8765
 
 ### 4. Running via Command Line (CLI)
 
-For servers, headless environments, or automation scripts, use [`backfill.py`](file:///c:/Users/krish/Desktop/my-activity/backfill.py):
+For servers, headless environments, or automation scripts, use `backfill.py`:
 
 #### A. Preview first without making commits (`--dry-run`):
 ```powershell
@@ -142,7 +142,7 @@ GitHub parses author and committer timestamps from each Git commit object:
    GIT_AUTHOR_DATE="2026-05-15T14:30:00"
    GIT_COMMITTER_DATE="2026-05-15T14:30:00"
    ```
-2. **File Mutation**: Timestamps are written to [`activity.txt`](file:///c:/Users/krish/Desktop/my-activity/activity.txt) ensuring every commit has an authentic file diff (GitHub often skips `--allow-empty` commits).
+2. **File Mutation**: Timestamps are written to `activity.txt` ensuring every commit has an authentic file diff (GitHub often skips `--allow-empty` commits).
 3. **Identity Verification**: Uses your configured Git email (`git config user.email`), ensuring attribution to your profile.
 
 ---
@@ -150,14 +150,14 @@ GitHub parses author and committer timestamps from each Git commit object:
 ## 📁 Repository Structure
 
 ```
-my-activity/
+github-contribution-backfiller/
 ├── app.py           # Web UI server & API (Python standard library, zero dependencies)
 ├── backfill.py      # Standalone CLI backfill script
 ├── start_ui.bat     # Windows launcher (double-click to start)
 ├── start_ui.sh      # macOS / Linux launcher script
 ├── activity.txt     # Log file updated by backdated commits
 ├── .gitignore       # Ignores Python bytecode and temporary files
-└── README.md        # Comprehensive documentation
+└── README.md        # Documentation
 ```
 
 ---
