@@ -68,7 +68,7 @@ http://localhost:8765
 
 ### 3. Step-by-Step UI Walkthrough
 
-<img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/a28537b1-78c7-4bbf-b0ca-4c98d0dc8e64" />
+<img width="1920" height="917" alt="image" src="https://github.com/user-attachments/assets/4e35c437-810f-4fac-9ce1-5a461020c87e" />
 
 1. **Verify Your User**:
    Look at the header. If your GitHub handle is different from your local Git name, click **`[edit]`** next to your username to load your profile graph.
