@@ -68,21 +68,7 @@ http://localhost:8765
 
 ### 3. Step-by-Step UI Walkthrough
 
-```
-┌───────────────────────────────────────┬──────────────────────────────────────────────┐
-│  LEFT PANEL: Controls                 │  RIGHT PANEL: Live 52-Week Preview           │
-├───────────────────────────────────────┼──────────────────────────────────────────────┤
-│ 1. Select Date Range (Presets/Custom) │  [Nov  Dec  Jan  Feb  Mar  Apr  May ...]     │
-│    ☑ Smart Gap Fill (Skip active days)│  Mon 🟩 🟩 🟩 🟩 🟦 🟦 🟦 🟩 🟩 🟩           │
-│                                       │  Wed 🟩 🟩 🟩 🟩 🟦 🟦 🟦 🟩 🟩 🟩           │
-│ 2. Intensity & Frequency Sliders      │  Fri 🟩 🟩 🟩 🟩 🟦 🟦 🟦 🟩 🟩 🟩           │
-│    - Commits/Day: 2 - 5               │                                              │
-│    - Activity Rate: 85%               │  (Solid green = Existing GitHub activity)    │
-│    - ☐ Skip weekends                  │  (Blue border = New proposed commits)        │
-│                                       ├──────────────────────────────────────────────┤
-│ [ 🚀 Generate Commits ]               │ 📋 Activity Console & Live Logs              │
-└───────────────────────────────────────┴──────────────────────────────────────────────┘
-```
+<img width="1920" height="1020" alt="image" src="https://github.com/user-attachments/assets/a28537b1-78c7-4bbf-b0ca-4c98d0dc8e64" />
 
 1. **Verify Your User**:
    Look at the header. If your GitHub handle is different from your local Git name, click **`[edit]`** next to your username to load your profile graph.
